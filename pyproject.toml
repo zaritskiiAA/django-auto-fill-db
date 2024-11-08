@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "django-auto-fill-db"
+version = "0.1.0"
+description = ""
+authors = ["zaritskiyaa <zaritskiyaa@mail.ru>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+factory-boy = "^3.3.1"
+django = "^3.2.16"
+pillow = "^11.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
