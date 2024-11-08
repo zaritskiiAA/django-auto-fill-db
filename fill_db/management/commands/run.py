@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
-from django.contrib.contenttypes.models import ContentType
+
+from fill_db.parser import Parser
 
 
 class Command(BaseCommand):
@@ -9,4 +10,5 @@ class Command(BaseCommand):
         parser.add_argument("init", type=bool)
 
     def handle(self, *args, **options):
-        pass
+        if options.get("init"):
+            Parser().parse()
