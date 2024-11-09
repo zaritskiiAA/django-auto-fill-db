@@ -115,5 +115,5 @@ AUTO_FILL_CONFIG = {
     "apps_exclude": [],
     "tables_exclude": {
         "foodgram": {"importfile"},
-    }
+    },
 }

@@ -10,5 +10,7 @@ class Command(BaseCommand):
         parser.add_argument("init", type=bool)
 
     def handle(self, *args, **options):
+
         if options.get("init"):
             Parser().parse()
+        
