@@ -9,9 +9,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Model
 
 from .config import Config
+from .exceptions import ConflictRelationError
+from .handers import MessageHandler
 
 
-class Parser:
+class Parser(MessageHandler):
 
     @cached_property
     def config(self) -> Config:
@@ -23,13 +25,13 @@ class Parser:
         all_models = {}
 
         for app, tables in django_apps.all_models.items():
+
+            if not tables or (app in self.config["apps_exclude"] and app not in self.config["ignore_tables"]):
+                continue
             
             if app in self.config["apps_exclude"] and app in self.config["ignore_tables"]:
                 ignore_tables = self.config["ignore_tables"].get(app)
                 tables = {t: model_cls for t, model_cls in tables.items() if t in ignore_tables} 
-                
-            elif app in self.config["apps_exclude"]:
-                continue
 
             if table_exclude := self.config["tables_exclude"].get(app):
                 tables = {t: model_cls for t, model_cls in tables.items() if t not in table_exclude} 
@@ -48,27 +50,52 @@ class Parser:
     
     def get_fields(self, model_cls: Model) -> dict[str, Any]:
         meta = model_cls._meta
-        simple_fields = {
-            "simple": {}, "fk": {}, "mtm": {}, "default_related_name": getattr(meta, "default_related_name", None)
+        fields = {
+            "simple": {}, "fk": {}, "mtm": {}, 
+            "default_related_name": getattr(meta, "default_related_name", None),
+            "model_name": model_cls.__name__,
         }
         for field in meta.concrete_fields:
 
             if not field.primary_key and not hasattr(field, 'through') and not field.related_model:
-                simple_fields["simple"].update({field.attname: field.__class__.__name__})
+                fields["simple"].update({field.attname: field.__class__.__name__})
+
             elif not field.primary_key and field.is_relation:
-                simple_fields["fk"].update({field.attname: self.get_django_contenttype_id(field.related_model)})
+                related_model_app_name = field.related_model._meta.app_label 
+                related_model_name = field.related_model._meta.model_name
+                if (
+                    related_model_app_name not in self.tables_to_parse or 
+                    related_model_name not in self.tables_to_parse[related_model_app_name]
+                ):
+                    raise ConflictRelationError(
+                        f"Model {meta.model_name} have fk relation with "
+                        f"excluded model {related_model_app_name}_{related_model_name}"
+                    )
+                fields["fk"].update({field.attname: self.get_django_contenttype_id(field.related_model)})
 
         for field in meta.many_to_many:
+            related_model_app_name = field.related_model._meta.app_label 
+            related_model_name = field.related_model._meta.model_name
+
             if not hasattr(field, 'through'):
-                simple_fields["mtm"].update(
-                    {
-                        field.attname: {
-                            "contenttype_id":self.get_django_contenttype_id(field.related_model),
-                            "related_name": field.related_query_name(),
-                        },
-                    }
-                )
-        return simple_fields
+                if (
+                    related_model_app_name not in self.tables_to_parse or 
+                    related_model_name not in self.tables_to_parse[related_model_app_name]
+                ):
+                    self.stdout.write(
+                        f"WARINING: Model {meta.model_name} have mtm relation with "
+                        f"excluded model {related_model_app_name}_{related_model_name}. This relation will be ignored."
+                    )
+                else:
+                    fields["mtm"].update(
+                        {
+                            field.attname: {
+                                "contenttype_id":self.get_django_contenttype_id(field.related_model),
+                                "related_name": field.related_query_name(),
+                            },
+                        }
+                    )
+        return fields
     
     def create_tables_map(self) -> dict[str, defaultdict[str, dict[str, Any]]]:
 

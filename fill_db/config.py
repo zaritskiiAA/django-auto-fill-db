@@ -3,8 +3,10 @@ from collections import defaultdict
 
 from django.conf import settings as django_settings
 
+from .handers import MessageHandler
 
-class Config:
+
+class Config(MessageHandler):
 
     _default_apps_exclude = frozenset(
         [
