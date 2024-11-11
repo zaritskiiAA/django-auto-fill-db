@@ -23,16 +23,18 @@ class Parser:
         all_models = {}
 
         for app, tables in django_apps.all_models.items():
+            
+            if app in self.config["apps_exclude"] and app in self.config["ignore_tables"]:
+                ignore_tables = self.config["ignore_tables"].get(app)
+                tables = {t: model_cls for t, model_cls in tables.items() if t in ignore_tables} 
+                
+            elif app in self.config["apps_exclude"]:
+                continue
 
-            if tables and (app not in self.config["apps_exclude"] or app in self.config["ignore_tables"]):
+            if table_exclude := self.config["tables_exclude"].get(app):
+                tables = {t: model_cls for t, model_cls in tables.items() if t not in table_exclude} 
 
-                if table_exclude := self.config["tables_exclude"].get(app):
-                    tables = {t: model_cls for t, model_cls in tables.items() if t not in table_exclude}
-
-                if ignore_tables := self.config["ignore_tables"].get(app):
-                    tables = {t: model_cls for t, model_cls in tables.items() if t in ignore_tables}
-
-                all_models[app] = tables
+            all_models[app] = tables
         return all_models
     
     @staticmethod
